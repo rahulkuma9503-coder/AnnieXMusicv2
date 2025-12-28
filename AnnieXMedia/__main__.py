@@ -4,9 +4,11 @@ import importlib
 import os
 import sys
 import threading
+import time
 
 # === FLASK WEB SERVER FOR RENDER ===
 from flask import Flask
+from waitress import serve
 
 # Create Flask app
 web_app = Flask(__name__)
@@ -23,23 +25,24 @@ def health():
 def ping():
     return "pong", 200
 
-# Start Flask immediately in background
+# Start Flask with waitress (production server) in a separate process
 def start_web_server():
     port = int(os.environ.get("PORT", 8080))
-    print(f"🌐 Starting web server on port {port} (for Render)")
-    web_app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+    print(f"🌐 Starting web server on port {port}")
+    # Use waitress instead of Flask's dev server
+    serve(web_app, host='0.0.0.0', port=port, threads=4)
 
-# Start Flask in a separate thread IMMEDIATELY
-flask_thread = threading.Thread(target=start_web_server, daemon=True)
-flask_thread.start()
+# Start Flask in a separate PROCESS (not thread) to avoid event loop conflicts
+import multiprocessing
+flask_process = multiprocessing.Process(target=start_web_server, daemon=True)
+flask_process.start()
 
 # Wait a moment for Flask to start
-import time
-time.sleep(1)
+time.sleep(3)
 print("✅ Web server started successfully")
-# === END FLASH SERVER ===
+# === END FLASK SERVER ===
 
-# Original imports and code continue below
+# Now import Pyrogram AFTER Flask is started to avoid loop conflicts
 from pyrogram import idle
 from pytgcalls.exceptions import NoActiveGroupCall
 
@@ -115,4 +118,14 @@ async def init():
 
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(init())
+    # Fix for asyncio event loop
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(init())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Clean up Flask process
+        if 'flask_process' in locals() and flask_process.is_alive():
+            flask_process.terminate()
