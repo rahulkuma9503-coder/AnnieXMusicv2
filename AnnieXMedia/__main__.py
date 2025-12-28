@@ -1,14 +1,14 @@
-
 # Authored By Certified Coders © 2025
 import asyncio
 import importlib
 import os
 import sys
+
 from pyrogram import idle
 from pytgcalls.exceptions import NoActiveGroupCall
 
 import config
-from AnnieXMedia import LOGGER, app, userbot
+from AnnieXMedia import LOGGER, app, userbot, start_health_server
 from AnnieXMedia.core.call import StreamController
 from AnnieXMedia.misc import sudo
 from AnnieXMedia.plugins import ALL_MODULES
@@ -16,7 +16,11 @@ from AnnieXMedia.utils.database import get_banned_users, get_gbanned
 from AnnieXMedia.utils.cookie_handler import fetch_and_store_cookies
 from config import BANNED_USERS
 
+
 async def init():
+    # Start health server immediately
+    start_health_server()
+    
     if (
         not config.STRING1
         and not config.STRING2
@@ -25,7 +29,7 @@ async def init():
         and not config.STRING5
     ):
         LOGGER(__name__).error("ᴀssɪsᴛᴀɴᴛ sᴇssɪᴏɴ ɴᴏᴛ ғɪʟʟᴇᴅ, ᴘʟᴇᴀsᴇ ғɪʟʟ ᴀ ᴘʏʀᴏɢʀᴀᴍ sᴇssɪᴏɴ...")
-        exit()
+        sys.exit(1)
 
     # ✅ Try to fetch cookies at startup
     try:
@@ -62,7 +66,7 @@ async def init():
         LOGGER("AnnieXMedia").error(
             "ᴘʟᴇᴀsᴇ ᴛᴜʀɴ ᴏɴ ᴛʜᴇ ᴠᴏɪᴄᴇ ᴄʜᴀᴛ ᴏғ ʏᴏᴜʀ ʟᴏɢ ɢʀᴏᴜᴘ/ᴄʜᴀɴɴᴇʟ.\n\nᴀɴɴɪᴇ ʙᴏᴛ sᴛᴏᴘᴘᴇᴅ..."
         )
-        exit()
+        sys.exit(1)
     except:
         pass
 
@@ -78,31 +82,4 @@ async def init():
 
 
 if __name__ == "__main__":
-    # Start a simple HTTP server in background for Render
-    import http.server
-    import socketserver
-    import threading
-    
-    class HealthHandler(http.server.SimpleHTTPRequestHandler):
-        def do_GET(self):
-            if self.path == '/health' or self.path == '/':
-                self.send_response(200)
-                self.send_header('Content-type', 'text/plain')
-                self.end_headers()
-                self.wfile.write(b'OK')
-            else:
-                self.send_response(404)
-                self.end_headers()
-    
-    def run_http_server():
-        port = int(os.environ.get("PORT", 8080))
-        with socketserver.TCPServer(("0.0.0.0", port), HealthHandler) as httpd:
-            print(f"🌐 HTTP server running on port {port}")
-            httpd.serve_forever()
-    
-    # Start HTTP server in background thread
-    server_thread = threading.Thread(target=run_http_server, daemon=True)
-    server_thread.start()
-    
-    # Run the bot
     asyncio.get_event_loop().run_until_complete(init())
