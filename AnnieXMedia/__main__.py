@@ -2,8 +2,44 @@
 import asyncio
 import importlib
 import os
-import threading
 import sys
+import threading
+
+# === FLASK WEB SERVER FOR RENDER ===
+from flask import Flask
+
+# Create Flask app
+web_app = Flask(__name__)
+
+@web_app.route('/')
+def home():
+    return "AnnieX Music Bot", 200
+
+@web_app.route('/health')
+def health():
+    return "OK", 200
+
+@web_app.route('/ping')
+def ping():
+    return "pong", 200
+
+# Start Flask immediately in background
+def start_web_server():
+    port = int(os.environ.get("PORT", 8080))
+    print(f"🌐 Starting web server on port {port} (for Render)")
+    web_app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+
+# Start Flask in a separate thread IMMEDIATELY
+flask_thread = threading.Thread(target=start_web_server, daemon=True)
+flask_thread.start()
+
+# Wait a moment for Flask to start
+import time
+time.sleep(1)
+print("✅ Web server started successfully")
+# === END FLASH SERVER ===
+
+# Original imports and code continue below
 from pyrogram import idle
 from pytgcalls.exceptions import NoActiveGroupCall
 
@@ -16,11 +52,6 @@ from AnnieXMedia.utils.database import get_banned_users, get_gbanned
 from AnnieXMedia.utils.cookie_handler import fetch_and_store_cookies
 from config import BANNED_USERS
 
-# Import and start Flask server immediately
-from web_server import run_flask
-flask_thread = threading.Thread(target=run_flask, daemon=True)
-flask_thread.start()
-print("✅ Web server started immediately")
 
 async def init():
     if (
@@ -30,14 +61,16 @@ async def init():
         and not config.STRING4
         and not config.STRING5
     ):
-        LOGGER(__name__).error("Assistant session not filled")
+        LOGGER(__name__).error("ᴀssɪsᴛᴀɴᴛ sᴇssɪᴏɴ ɴᴏᴛ ғɪʟʟᴇᴅ, ᴘʟᴇᴀsᴇ ғɪʟʟ ᴀ ᴘʏʀᴏɢʀᴀᴍ sᴇssɪᴏɴ...")
         sys.exit(1)
 
+    # ✅ Try to fetch cookies at startup
     try:
         await fetch_and_store_cookies()
-        LOGGER("AnnieXMedia").info("Cookies loaded")
+        LOGGER("AnnieXMedia").info("ʏᴏᴜᴛᴜʙᴇ ᴄᴏᴏᴋɪᴇs ʟᴏᴀᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ✅")
     except Exception as e:
-        LOGGER("AnnieXMedia").warning(f"Cookie error: {e}")
+        LOGGER("AnnieXMedia").warning(f"⚠️ᴄᴏᴏᴋɪᴇ ᴇʀʀᴏʀ: {e}")
+
 
     await sudo()
 
@@ -55,7 +88,7 @@ async def init():
     for all_module in ALL_MODULES:
         importlib.import_module("AnnieXMedia.plugins" + all_module)
 
-    LOGGER("AnnieXMedia.plugins").info("Modules loaded")
+    LOGGER("AnnieXMedia.plugins").info("ᴀɴɴɪᴇ's ᴍᴏᴅᴜʟᴇs ʟᴏᴀᴅᴇᴅ...")
 
     await userbot.start()
     await StreamController.start()
@@ -63,19 +96,23 @@ async def init():
     try:
         await StreamController.stream_call("http://docs.evostream.com/sample_content/assets/sintel1m720p.mp4")
     except NoActiveGroupCall:
-        LOGGER("AnnieXMedia").error("Turn on voice chat")
+        LOGGER("AnnieXMedia").error(
+            "ᴘʟᴇᴀsᴇ ᴛᴜʀɴ ᴏɴ ᴛʜᴇ ᴠᴏɪᴄᴇ ᴄʜᴀᴛ ᴏғ ʏᴏᴜʀ ʟᴏɢ ɢʀᴏᴜᴘ/ᴄʜᴀɴɴᴇʟ.\n\nᴀɴɴɪᴇ ʙᴏᴛ sᴛᴏᴘᴘᴇᴅ..."
+        )
         sys.exit(1)
     except:
         pass
 
     await StreamController.decorators()
-    LOGGER("AnnieXMedia").info("✅ Bot Started Successfully")
+    LOGGER("AnnieXMedia").info(
+        "\x41\x6e\x6e\x69\x65\x20\x4d\x75\x73\x69\x63\x20\x52\x6f\x62\x6f\x74\x20\x53\x74\x61\x72\x74\x65\x64\x20\x53\x75\x63\x63\x65\x73\x73\x66\x75\x6c\x6c\x79\x2e\x2e\x2e"
+    )
     
     await idle()
-    
     await app.stop()
     await userbot.stop()
-    LOGGER("AnnieXMedia").info("Bot Stopped")
+    LOGGER("AnnieXMedia").info("sᴛᴏᴘᴘɪɴɢ ᴀɴɴɪᴇ ᴍᴜsɪᴄ ʙᴏᴛ ...")
+
 
 if __name__ == "__main__":
-    asyncio.run(init())
+    asyncio.get_event_loop().run_until_complete(init())
