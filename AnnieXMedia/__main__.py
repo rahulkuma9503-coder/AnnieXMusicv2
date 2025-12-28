@@ -18,6 +18,7 @@ from config import BANNED_USERS
 
 # Global variable to track bot initialization
 bot_initialized = False
+web_runner = None
 
 async def health_check(request):
     """Health check endpoint for Render"""
@@ -29,12 +30,13 @@ async def health_check(request):
 
 async def start_web_server():
     """Start aiohttp web server for Render"""
+    global web_runner
+    
     # Get port from Render environment or use default
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 8080))
     
     # Log port info
     LOGGER("AnnieXMedia").info(f"🌐 Starting web server on port {port}")
-    LOGGER("AnnieXMedia").info(f"🌐 Server will be available at: 0.0.0.0:{port}")
     
     # Create app and routes
     app_web = web.Application()
@@ -51,32 +53,30 @@ async def start_web_server():
         site = web.TCPSite(runner, '0.0.0.0', port)
         await site.start()
         LOGGER("AnnieXMedia").info(f"✅ Web server successfully started on port {port}")
-        LOGGER("AnnieXMedia").info(f"✅ Health check available at: http://0.0.0.0:{port}/health")
+        web_runner = runner
         return runner
     except OSError as e:
         LOGGER("AnnieXMedia").error(f"❌ Failed to start web server on port {port}: {e}")
-        LOGGER("AnnieXMedia").info("⚠️ Trying alternative port 8080...")
         
-        # Try alternative port
-        try:
-            site = web.TCPSite(runner, '0.0.0.0', 8080)
-            await site.start()
-            LOGGER("AnnieXMedia").info("✅ Web server started on port 8080")
-            return runner
-        except OSError as e2:
-            LOGGER("AnnieXMedia").error(f"❌ Failed to start web server: {e2}")
-            return None
+        # Try alternative ports
+        for alt_port in [10000, 3000, 5000, 8000]:
+            try:
+                LOGGER("AnnieXMedia").info(f"⚠️ Trying alternative port {alt_port}...")
+                site = web.TCPSite(runner, '0.0.0.0', alt_port)
+                await site.start()
+                LOGGER("AnnieXMedia").info(f"✅ Web server started on port {alt_port}")
+                web_runner = runner
+                return runner
+            except OSError:
+                continue
+        
+        LOGGER("AnnieXMedia").error("❌ Failed to start web server on any port")
+        return None
 
 async def init():
     global bot_initialized
     
-    # Start web server FIRST (Render needs this immediately)
-    LOGGER("AnnieXMedia").info("🚀 Starting web server for Render...")
-    web_runner = await start_web_server()
-    
-    if not web_runner:
-        LOGGER("AnnieXMedia").error("❌ Failed to start web server. Exiting...")
-        exit(1)
+    LOGGER("AnnieXMedia").info("🚀 Starting AnnieX Music Bot...")
     
     # Check for session strings
     if (
@@ -87,7 +87,6 @@ async def init():
         and not config.STRING5
     ):
         LOGGER(__name__).error("❌ Assistant session not filled, please fill a pyrogram session...")
-        await web_runner.cleanup()
         exit(1)
 
     # ✅ Try to fetch cookies at startup
@@ -124,7 +123,6 @@ async def init():
         LOGGER("AnnieXMedia").error(
             "❌ Please turn on the voice chat of your log group/channel.\n\nAnnie bot stopped..."
         )
-        await web_runner.cleanup()
         exit(1)
     except Exception as e:
         LOGGER("AnnieXMedia").warning(f"⚠️ Stream call test failed: {e}")
@@ -134,7 +132,6 @@ async def init():
     # Mark bot as initialized
     bot_initialized = True
     LOGGER("AnnieXMedia").info("✅ Annie Music Bot Started Successfully...")
-    LOGGER("AnnieXMedia").info("✅ Bot is now ready and listening for commands")
     
     # Keep the bot running
     await idle()
@@ -143,26 +140,42 @@ async def init():
     bot_initialized = False
     await app.stop()
     await userbot.stop()
-    await web_runner.cleanup()
     LOGGER("AnnieXMedia").info("🛑 Stopping Annie Music Bot ...")
 
+async def main():
+    """Main entry point with web server"""
+    # Start web server in background
+    web_task = asyncio.create_task(start_web_server())
+    
+    # Wait a moment for web server to start
+    await asyncio.sleep(2)
+    
+    # Start the bot
+    try:
+        await init()
+    except Exception as e:
+        LOGGER("AnnieXMedia").error(f"❌ Fatal error in bot: {e}")
+    finally:
+        # Cleanup web server
+        if web_runner:
+            await web_runner.cleanup()
+        # Cancel any pending tasks
+        for task in asyncio.all_tasks():
+            if task is not asyncio.current_task():
+                task.cancel()
 
 if __name__ == "__main__":
-    # Clear any existing event loop (for Render compatibility)
+    # Clear any existing event loop
     try:
-        asyncio.get_event_loop().close()
+        loop = asyncio.get_event_loop()
     except:
-        pass
-    
-    # Create new event loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
     
     try:
-        loop.run_until_complete(init())
+        loop.run_until_complete(main())
     except KeyboardInterrupt:
         LOGGER("AnnieXMedia").info("🛑 Bot stopped by user")
     except Exception as e:
         LOGGER("AnnieXMedia").error(f"❌ Fatal error: {e}")
-    finally:
-        loop.close()
+        sys.exit(1)
