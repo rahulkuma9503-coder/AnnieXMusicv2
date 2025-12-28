@@ -1,48 +1,9 @@
+
 # Authored By Certified Coders © 2025
 import asyncio
 import importlib
 import os
 import sys
-import threading
-import time
-
-# === FLASK WEB SERVER FOR RENDER ===
-from flask import Flask
-from waitress import serve
-
-# Create Flask app
-web_app = Flask(__name__)
-
-@web_app.route('/')
-def home():
-    return "AnnieX Music Bot", 200
-
-@web_app.route('/health')
-def health():
-    return "OK", 200
-
-@web_app.route('/ping')
-def ping():
-    return "pong", 200
-
-# Start Flask with waitress (production server) in a separate process
-def start_web_server():
-    port = int(os.environ.get("PORT", 8080))
-    print(f"🌐 Starting web server on port {port}")
-    # Use waitress instead of Flask's dev server
-    serve(web_app, host='0.0.0.0', port=port, threads=4)
-
-# Start Flask in a separate PROCESS (not thread) to avoid event loop conflicts
-import multiprocessing
-flask_process = multiprocessing.Process(target=start_web_server, daemon=True)
-flask_process.start()
-
-# Wait a moment for Flask to start
-time.sleep(3)
-print("✅ Web server started successfully")
-# === END FLASK SERVER ===
-
-# Now import Pyrogram AFTER Flask is started to avoid loop conflicts
 from pyrogram import idle
 from pytgcalls.exceptions import NoActiveGroupCall
 
@@ -55,7 +16,6 @@ from AnnieXMedia.utils.database import get_banned_users, get_gbanned
 from AnnieXMedia.utils.cookie_handler import fetch_and_store_cookies
 from config import BANNED_USERS
 
-
 async def init():
     if (
         not config.STRING1
@@ -65,7 +25,7 @@ async def init():
         and not config.STRING5
     ):
         LOGGER(__name__).error("ᴀssɪsᴛᴀɴᴛ sᴇssɪᴏɴ ɴᴏᴛ ғɪʟʟᴇᴅ, ᴘʟᴇᴀsᴇ ғɪʟʟ ᴀ ᴘʏʀᴏɢʀᴀᴍ sᴇssɪᴏɴ...")
-        sys.exit(1)
+        exit()
 
     # ✅ Try to fetch cookies at startup
     try:
@@ -102,7 +62,7 @@ async def init():
         LOGGER("AnnieXMedia").error(
             "ᴘʟᴇᴀsᴇ ᴛᴜʀɴ ᴏɴ ᴛʜᴇ ᴠᴏɪᴄᴇ ᴄʜᴀᴛ ᴏғ ʏᴏᴜʀ ʟᴏɢ ɢʀᴏᴜᴘ/ᴄʜᴀɴɴᴇʟ.\n\nᴀɴɴɪᴇ ʙᴏᴛ sᴛᴏᴘᴘᴇᴅ..."
         )
-        sys.exit(1)
+        exit()
     except:
         pass
 
@@ -118,14 +78,31 @@ async def init():
 
 
 if __name__ == "__main__":
-    # Fix for asyncio event loop
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(init())
-    except KeyboardInterrupt:
-        pass
-    finally:
-        # Clean up Flask process
-        if 'flask_process' in locals() and flask_process.is_alive():
-            flask_process.terminate()
+    # Start a simple HTTP server in background for Render
+    import http.server
+    import socketserver
+    import threading
+    
+    class HealthHandler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == '/health' or self.path == '/':
+                self.send_response(200)
+                self.send_header('Content-type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(b'OK')
+            else:
+                self.send_response(404)
+                self.end_headers()
+    
+    def run_http_server():
+        port = int(os.environ.get("PORT", 8080))
+        with socketserver.TCPServer(("0.0.0.0", port), HealthHandler) as httpd:
+            print(f"🌐 HTTP server running on port {port}")
+            httpd.serve_forever()
+    
+    # Start HTTP server in background thread
+    server_thread = threading.Thread(target=run_http_server, daemon=True)
+    server_thread.start()
+    
+    # Run the bot
+    asyncio.get_event_loop().run_until_complete(init())
