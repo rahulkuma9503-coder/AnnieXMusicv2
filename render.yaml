@@ -1,14 +1,10 @@
-version: "1"
 services:
   - type: web
     name: annie-music-bot
     env: docker
     dockerfilePath: ./Dockerfile
-    plan: free
-    region: oregon
     envVars:
       - key: PORT
         value: 8080
     healthCheckPath: /health
-    healthCheckTimeout: 10
     autoDeploy: true
