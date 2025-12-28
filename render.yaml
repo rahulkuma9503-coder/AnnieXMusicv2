@@ -1,0 +1,34 @@
+version: "1"
+services:
+  - type: web
+    name: annie-music-bot
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon  # or singapore, frankfurt, ohio
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: API_ID
+        sync: false
+      - key: API_HASH
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: STRING1
+        sync: false
+      - key: STRING2
+        sync: false
+      - key: STRING3
+        sync: false
+      - key: STRING4
+        sync: false
+      - key: STRING5
+        sync: false
+      - key: MONGO_DB_URI
+        sync: false
+    healthCheckPath: /health
+    autoDeploy: true
+    domains:
+      - annie-music-bot.onrender.com
