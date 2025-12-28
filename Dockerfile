@@ -13,4 +13,4 @@ RUN pip install --no-cache-dir -U pip && \
 
 COPY . .
 EXPOSE 8080
-CMD ["python3", "render_start.py"]
+CMD ["python3", "-m", "AnnieXMedia"]
