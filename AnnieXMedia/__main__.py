@@ -2,8 +2,8 @@
 import asyncio
 import importlib
 import os
-import sys
-from aiohttp import web
+import threading
+from flask import Flask
 from pyrogram import idle
 from pytgcalls.exceptions import NoActiveGroupCall
 
@@ -16,65 +16,40 @@ from AnnieXMedia.utils.database import get_banned_users, get_gbanned
 from AnnieXMedia.utils.cookie_handler import fetch_and_store_cookies
 from config import BANNED_USERS
 
-# Global variable to track bot initialization
+# Create Flask app
+flask_app = Flask(__name__)
 bot_initialized = False
-web_runner = None
 
-async def health_check(request):
+@flask_app.route('/')
+def home():
+    """Home route"""
+    return "🚀 AnnieX Music Bot is running", 200
+
+@flask_app.route('/health')
+def health():
     """Health check endpoint for Render"""
-    global bot_initialized
     if bot_initialized:
-        return web.Response(text="✅ AnnieX Music Bot is running", status=200)
+        return "✅ AnnieX Music Bot is running", 200
     else:
-        return web.Response(text="🔄 Bot is starting...", status=503)
+        return "🔄 Bot is starting...", 503
 
-async def start_web_server():
-    """Start aiohttp web server for Render"""
-    global web_runner
-    
-    # Get port from Render environment or use default
+@flask_app.route('/ping')
+def ping():
+    """Simple ping endpoint"""
+    return "pong", 200
+
+def run_flask():
+    """Run Flask server in a separate thread"""
     port = int(os.environ.get("PORT", 8080))
-    
-    # Log port info
-    LOGGER("AnnieXMedia").info(f"🌐 Starting web server on port {port}")
-    
-    # Create app and routes
-    app_web = web.Application()
-    app_web.router.add_get('/', health_check)
-    app_web.router.add_get('/health', health_check)
-    app_web.router.add_get('/ping', lambda request: web.Response(text='pong'))
-    
-    # Configure the runner
-    runner = web.AppRunner(app_web)
-    await runner.setup()
-    
-    try:
-        # Try to bind to the port
-        site = web.TCPSite(runner, '0.0.0.0', port)
-        await site.start()
-        LOGGER("AnnieXMedia").info(f"✅ Web server successfully started on port {port}")
-        web_runner = runner
-        return runner
-    except OSError as e:
-        LOGGER("AnnieXMedia").error(f"❌ Failed to start web server on port {port}: {e}")
-        
-        # Try alternative ports
-        for alt_port in [10000, 3000, 5000, 8000]:
-            try:
-                LOGGER("AnnieXMedia").info(f"⚠️ Trying alternative port {alt_port}...")
-                site = web.TCPSite(runner, '0.0.0.0', alt_port)
-                await site.start()
-                LOGGER("AnnieXMedia").info(f"✅ Web server started on port {alt_port}")
-                web_runner = runner
-                return runner
-            except OSError:
-                continue
-        
-        LOGGER("AnnieXMedia").error("❌ Failed to start web server on any port")
-        return None
+    LOGGER("AnnieXMedia").info(f"🌐 Starting Flask server on port {port}")
+    flask_app.run(host='0.0.0.0', port=port, debug=False, threaded=True, use_reloader=False)
 
 async def init():
     global bot_initialized
+    
+    # Start Flask server in a separate thread
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
     
     LOGGER("AnnieXMedia").info("🚀 Starting AnnieX Music Bot...")
     
@@ -132,6 +107,7 @@ async def init():
     # Mark bot as initialized
     bot_initialized = True
     LOGGER("AnnieXMedia").info("✅ Annie Music Bot Started Successfully...")
+    LOGGER("AnnieXMedia").info(f"✅ Flask server is running on port {os.environ.get('PORT', 8080)}")
     
     # Keep the bot running
     await idle()
@@ -142,40 +118,6 @@ async def init():
     await userbot.stop()
     LOGGER("AnnieXMedia").info("🛑 Stopping Annie Music Bot ...")
 
-async def main():
-    """Main entry point with web server"""
-    # Start web server in background
-    web_task = asyncio.create_task(start_web_server())
-    
-    # Wait a moment for web server to start
-    await asyncio.sleep(2)
-    
-    # Start the bot
-    try:
-        await init()
-    except Exception as e:
-        LOGGER("AnnieXMedia").error(f"❌ Fatal error in bot: {e}")
-    finally:
-        # Cleanup web server
-        if web_runner:
-            await web_runner.cleanup()
-        # Cancel any pending tasks
-        for task in asyncio.all_tasks():
-            if task is not asyncio.current_task():
-                task.cancel()
-
 if __name__ == "__main__":
-    # Clear any existing event loop
-    try:
-        loop = asyncio.get_event_loop()
-    except:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    try:
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        LOGGER("AnnieXMedia").info("🛑 Bot stopped by user")
-    except Exception as e:
-        LOGGER("AnnieXMedia").error(f"❌ Fatal error: {e}")
-        sys.exit(1)
+    # Start the bot
+    asyncio.run(init())
