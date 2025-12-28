@@ -4,7 +4,6 @@ from AnnieXMedia.core.dir import StorageManager
 from AnnieXMedia.core.git import git
 from AnnieXMedia.core.userbot import Userbot
 from AnnieXMedia.misc import dbb, heroku
-from flask import Flask
 
 from .logging import LOGGER
 
@@ -16,20 +15,39 @@ heroku()
 app = MusicBotClient()
 userbot = Userbot()
 
-# Create Flask web app for Render
-web_app = Flask(__name__)
+# ===== WEB SERVER FOR RENDER =====
+import threading
+import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
-@web_app.route('/')
-def home():
-    return "Bot is running", 200
+class HealthHandler(BaseHTTPRequestHandler):
+    """Simple HTTP handler for health checks"""
+    def do_GET(self):
+        if self.path == '/' or self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'OK')
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def log_message(self, format, *args):
+        """Disable logging"""
+        pass
 
-@web_app.route('/health')
-def health():
-    return "OK", 200
-
-@web_app.route('/ping')
-def ping():
-    return "pong", 200
+def start_health_server():
+    """Start a simple HTTP server for Render health checks"""
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(('0.0.0.0', port), HealthHandler)
+    
+    # Start server in a daemon thread
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    
+    LOGGER("AnnieXMedia").info(f"🌐 Health server started on port {port}")
+    return server
+# ===== END WEB SERVER =====
 
 from .platforms import *
 
