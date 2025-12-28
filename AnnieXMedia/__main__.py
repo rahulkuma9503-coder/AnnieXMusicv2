@@ -3,11 +3,12 @@ import asyncio
 import importlib
 import os
 import threading
+from flask import Flask
 from pyrogram import idle
 from pytgcalls.exceptions import NoActiveGroupCall
 
 import config
-from AnnieXMedia import LOGGER, app, userbot, web_app
+from AnnieXMedia import LOGGER, app, userbot
 from AnnieXMedia.core.call import StreamController
 from AnnieXMedia.misc import sudo
 from AnnieXMedia.plugins import ALL_MODULES
@@ -15,6 +16,28 @@ from AnnieXMedia.utils.database import get_banned_users, get_gbanned
 from AnnieXMedia.utils.cookie_handler import fetch_and_store_cookies
 from config import BANNED_USERS
 
+# Set port from environment (Render provides this)
+PORT = int(os.environ.get("PORT", 8080))
+
+# Create Flask app
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def home():
+    return "AnnieX Music Bot is running", 200
+
+@flask_app.route('/health')
+def health():
+    return "OK", 200
+
+def run_flask():
+    """Start Flask server immediately"""
+    flask_app.run(host='0.0.0.0', port=PORT, debug=False, threaded=True)
+
+# Start Flask IMMEDIATELY in background thread
+flask_thread = threading.Thread(target=run_flask, daemon=True)
+flask_thread.start()
+LOGGER("AnnieXMedia").info(f"🌐 Web server started on port {PORT}")
 
 async def init():
     if (
@@ -33,7 +56,6 @@ async def init():
         LOGGER("AnnieXMedia").info("ʏᴏᴜᴛᴜʙᴇ ᴄᴏᴏᴋɪᴇs ʟᴏᴀᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ✅")
     except Exception as e:
         LOGGER("AnnieXMedia").warning(f"⚠️ᴄᴏᴏᴋɪᴇ ᴇʀʀᴏʀ: {e}")
-
 
     await sudo()
 
@@ -68,17 +90,8 @@ async def init():
 
     await StreamController.decorators()
     LOGGER("AnnieXMedia").info(
-        "\x41\x6e\x6e\x69\x65\x20\x4d\x75\x73\x69\x63\x20\x52\x6f\x62\x6f\x74\x20\x53\x74\x61\x72\x74\x65\x64\x20\x53\x75\x63\x63\x65\x73\x73\x66\x75\x6c\x6c\x79\x2e\x2e\x2e"
+        "\x41\x6e\x6e\x69\x65\x20\x4d\x75\x73\x69\x63\x20\x52\x6f\x62\x6f\x74\x20\x53\x74\x61\x72\x74\x�4\x65\x64\x20\x53\x75\x63\x63\x65\x73\x73\x66\x75\x6c\x6c\x79\x2e\x2e\x2e"
     )
-    
-    # Start Flask server in background
-    def run_flask():
-        port = int(os.environ.get("PORT", 8080))
-        web_app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
-    
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    LOGGER("AnnieXMedia").info(f"🌐 Web server started on port {os.environ.get('PORT', 8080)}")
     
     await idle()
     await app.stop()
