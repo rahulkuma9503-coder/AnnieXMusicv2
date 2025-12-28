@@ -42,4 +42,5 @@ unidecode
 wget
 yt-dlp[default]==2025.12.8
 Flask==3.0.0
+waitress==3.0.1
 git+https://github.com/CertifiedCoders/youtube-search-python
