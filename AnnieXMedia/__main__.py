@@ -2,6 +2,7 @@
 import asyncio
 import importlib
 import os
+import sys
 from aiohttp import web
 from pyrogram import idle
 from pytgcalls.exceptions import NoActiveGroupCall
@@ -15,25 +16,69 @@ from AnnieXMedia.utils.database import get_banned_users, get_gbanned
 from AnnieXMedia.utils.cookie_handler import fetch_and_store_cookies
 from config import BANNED_USERS
 
+# Global variable to track bot initialization
+bot_initialized = False
+
 async def health_check(request):
-    """Health check endpoint for Render to monitor"""
-    return web.Response(text="✅ AnnieX Media Bot is running", status=200)
+    """Health check endpoint for Render"""
+    global bot_initialized
+    if bot_initialized:
+        return web.Response(text="✅ AnnieX Music Bot is running", status=200)
+    else:
+        return web.Response(text="🔄 Bot is starting...", status=503)
 
 async def start_web_server():
-    """Start aiohttp web server for health checks"""
+    """Start aiohttp web server for Render"""
+    # Get port from Render environment or use default
+    port = int(os.environ.get("PORT", 10000))
+    
+    # Log port info
+    LOGGER("AnnieXMedia").info(f"🌐 Starting web server on port {port}")
+    LOGGER("AnnieXMedia").info(f"🌐 Server will be available at: 0.0.0.0:{port}")
+    
+    # Create app and routes
     app_web = web.Application()
     app_web.router.add_get('/', health_check)
     app_web.router.add_get('/health', health_check)
+    app_web.router.add_get('/ping', lambda request: web.Response(text='pong'))
     
-    port = int(os.environ.get("PORT", 8080))
+    # Configure the runner
     runner = web.AppRunner(app_web)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    LOGGER("AnnieXMedia").info(f"🌐 Web server started on port {port}")
-    return runner
+    
+    try:
+        # Try to bind to the port
+        site = web.TCPSite(runner, '0.0.0.0', port)
+        await site.start()
+        LOGGER("AnnieXMedia").info(f"✅ Web server successfully started on port {port}")
+        LOGGER("AnnieXMedia").info(f"✅ Health check available at: http://0.0.0.0:{port}/health")
+        return runner
+    except OSError as e:
+        LOGGER("AnnieXMedia").error(f"❌ Failed to start web server on port {port}: {e}")
+        LOGGER("AnnieXMedia").info("⚠️ Trying alternative port 8080...")
+        
+        # Try alternative port
+        try:
+            site = web.TCPSite(runner, '0.0.0.0', 8080)
+            await site.start()
+            LOGGER("AnnieXMedia").info("✅ Web server started on port 8080")
+            return runner
+        except OSError as e2:
+            LOGGER("AnnieXMedia").error(f"❌ Failed to start web server: {e2}")
+            return None
 
 async def init():
+    global bot_initialized
+    
+    # Start web server FIRST (Render needs this immediately)
+    LOGGER("AnnieXMedia").info("🚀 Starting web server for Render...")
+    web_runner = await start_web_server()
+    
+    if not web_runner:
+        LOGGER("AnnieXMedia").error("❌ Failed to start web server. Exiting...")
+        exit(1)
+    
+    # Check for session strings
     if (
         not config.STRING1
         and not config.STRING2
@@ -41,18 +86,16 @@ async def init():
         and not config.STRING4
         and not config.STRING5
     ):
-        LOGGER(__name__).error("ᴀssɪsᴛᴀɴᴛ sᴇssɪᴏɴ ɴᴏᴛ ғɪʟʟᴇᴅ, ᴘʟᴇᴀsᴇ ғɪʟʟ ᴀ ᴘʏʀᴏɢʀᴀᴍ sᴇssɪᴏɴ...")
-        exit()
+        LOGGER(__name__).error("❌ Assistant session not filled, please fill a pyrogram session...")
+        await web_runner.cleanup()
+        exit(1)
 
     # ✅ Try to fetch cookies at startup
     try:
         await fetch_and_store_cookies()
-        LOGGER("AnnieXMedia").info("ʏᴏᴜᴛᴜʙᴇ ᴄᴏᴏᴋɪᴇs ʟᴏᴀᴅᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ ✅")
+        LOGGER("AnnieXMedia").info("✅ YouTube cookies loaded successfully")
     except Exception as e:
-        LOGGER("AnnieXMedia").warning(f"⚠️ᴄᴏᴏᴋɪᴇ ᴇʀʀᴏʀ: {e}")
-
-    # Start web server for Render health checks
-    web_runner = await start_web_server()
+        LOGGER("AnnieXMedia").warning(f"⚠️ Cookie error: {e}")
 
     await sudo()
 
@@ -70,7 +113,7 @@ async def init():
     for all_module in ALL_MODULES:
         importlib.import_module("AnnieXMedia.plugins" + all_module)
 
-    LOGGER("AnnieXMedia.plugins").info("ᴀɴɴɪᴇ's ᴍᴏᴅᴜʟᴇs ʟᴏᴀᴅᴇᴅ...")
+    LOGGER("AnnieXMedia.plugins").info("✅ Annie's modules loaded...")
 
     await userbot.start()
     await StreamController.start()
@@ -79,25 +122,47 @@ async def init():
         await StreamController.stream_call("http://docs.evostream.com/sample_content/assets/sintel1m720p.mp4")
     except NoActiveGroupCall:
         LOGGER("AnnieXMedia").error(
-            "ᴘʟᴇᴀsᴇ ᴛᴜʀɴ ᴏɴ ᴛʜᴇ ᴠᴏɪᴄᴇ ᴄʜᴀᴛ ᴏғ ʏᴏᴜʀ ʟᴏɢ ɢʀᴏᴜᴘ/ᴄʜᴀɴɴᴇʟ.\n\nᴀɴɴɪᴇ ʙᴏᴛ sᴛᴏᴘᴘᴇᴅ..."
+            "❌ Please turn on the voice chat of your log group/channel.\n\nAnnie bot stopped..."
         )
         await web_runner.cleanup()
-        exit()
-    except:
-        pass
+        exit(1)
+    except Exception as e:
+        LOGGER("AnnieXMedia").warning(f"⚠️ Stream call test failed: {e}")
 
     await StreamController.decorators()
-    LOGGER("AnnieXMedia").info(
-        "\x41\x6e\x6e\x69\x65\x20\x4d\x75\x73\x69\x63\x20\x52\x6f\x62\x6f\x74\x20\x53\x74\x61\x72\x74\x65\x64\x20\x53\x75\x63\x63\x65\x73\x73\x66\x75\x6c\x6c\x79\x2e\x2e\x2e"
-    )
+    
+    # Mark bot as initialized
+    bot_initialized = True
+    LOGGER("AnnieXMedia").info("✅ Annie Music Bot Started Successfully...")
+    LOGGER("AnnieXMedia").info("✅ Bot is now ready and listening for commands")
+    
+    # Keep the bot running
     await idle()
+    
+    # Cleanup on exit
+    bot_initialized = False
     await app.stop()
     await userbot.stop()
-    
-    # Cleanup web server
     await web_runner.cleanup()
-    LOGGER("AnnieXMedia").info("sᴛᴏᴘᴘɪɴɢ ᴀɴɴɪᴇ ᴍᴜsɪᴄ ʙᴏᴛ ...")
+    LOGGER("AnnieXMedia").info("🛑 Stopping Annie Music Bot ...")
 
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(init())
+    # Clear any existing event loop (for Render compatibility)
+    try:
+        asyncio.get_event_loop().close()
+    except:
+        pass
+    
+    # Create new event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(init())
+    except KeyboardInterrupt:
+        LOGGER("AnnieXMedia").info("🛑 Bot stopped by user")
+    except Exception as e:
+        LOGGER("AnnieXMedia").error(f"❌ Fatal error: {e}")
+    finally:
+        loop.close()
