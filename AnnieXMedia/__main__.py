@@ -1,7 +1,8 @@
-﻿# Authored By Certified Coders © 2025
+# Authored By Certified Coders © 2025
 import asyncio
 import importlib
-
+import os
+from aiohttp import web
 from pyrogram import idle
 from pytgcalls.exceptions import NoActiveGroupCall
 
@@ -14,6 +15,23 @@ from AnnieXMedia.utils.database import get_banned_users, get_gbanned
 from AnnieXMedia.utils.cookie_handler import fetch_and_store_cookies
 from config import BANNED_USERS
 
+async def health_check(request):
+    """Health check endpoint for Render to monitor"""
+    return web.Response(text="✅ AnnieX Media Bot is running", status=200)
+
+async def start_web_server():
+    """Start aiohttp web server for health checks"""
+    app_web = web.Application()
+    app_web.router.add_get('/', health_check)
+    app_web.router.add_get('/health', health_check)
+    
+    port = int(os.environ.get("PORT", 8080))
+    runner = web.AppRunner(app_web)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    LOGGER("AnnieXMedia").info(f"🌐 Web server started on port {port}")
+    return runner
 
 async def init():
     if (
@@ -33,6 +51,8 @@ async def init():
     except Exception as e:
         LOGGER("AnnieXMedia").warning(f"⚠️ᴄᴏᴏᴋɪᴇ ᴇʀʀᴏʀ: {e}")
 
+    # Start web server for Render health checks
+    web_runner = await start_web_server()
 
     await sudo()
 
@@ -61,6 +81,7 @@ async def init():
         LOGGER("AnnieXMedia").error(
             "ᴘʟᴇᴀsᴇ ᴛᴜʀɴ ᴏɴ ᴛʜᴇ ᴠᴏɪᴄᴇ ᴄʜᴀᴛ ᴏғ ʏᴏᴜʀ ʟᴏɢ ɢʀᴏᴜᴘ/ᴄʜᴀɴɴᴇʟ.\n\nᴀɴɴɪᴇ ʙᴏᴛ sᴛᴏᴘᴘᴇᴅ..."
         )
+        await web_runner.cleanup()
         exit()
     except:
         pass
@@ -72,6 +93,9 @@ async def init():
     await idle()
     await app.stop()
     await userbot.stop()
+    
+    # Cleanup web server
+    await web_runner.cleanup()
     LOGGER("AnnieXMedia").info("sᴛᴏᴘᴘɪɴɢ ᴀɴɴɪᴇ ᴍᴜsɪᴄ ʙᴏᴛ ...")
 
 
